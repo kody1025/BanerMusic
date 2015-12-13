@@ -1,0 +1,213 @@
+package com.banermusic.widget;
+
+import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
+import android.os.Handler;
+import android.os.Message;
+import android.util.AttributeSet;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.PopupWindow;
+import android.widget.SeekBar;
+import android.widget.TextView;
+
+import com.banermusic.R;
+import com.banermusic.util.MediaUtils;
+
+import de.greenrobot.event.EventBus;
+
+
+public class BaseSeekBar extends SeekBar {
+	/**
+	 * 弹出提示信息窗口
+	 */
+	private PopupWindow mPopupWindow;
+	/**
+	 * 弹出窗口显示文本
+	 */
+	private TextView timeTip = null;
+	/**
+	 * 时间歌词
+	 */
+	private TextView timeLrc = null;
+
+	private class SeekBarMessage {
+		String timeTip;
+		String timeLrc;
+	}
+
+	private Context context;
+
+	private Bitmap bmp;
+
+	private Bitmap baseBitmap;
+
+	private Canvas pCanvas;
+
+	public BaseSeekBar(Context context, AttributeSet attrs, int defStyle) {
+		super(context, attrs, defStyle);
+		init(context);
+	}
+
+	public BaseSeekBar(Context context, AttributeSet attrs) {
+		super(context, attrs);
+		init(context);
+	}
+
+	public BaseSeekBar(Context context) {
+		super(context);
+		init(context);
+	}
+
+	@Override
+	protected synchronized void onDraw(Canvas canvas) {
+		Paint paint = new Paint();
+		paint.setColor(Color.rgb(185, 185, 185));
+
+		Rect r = new Rect(6, getHeight() / 2 - bmp.getHeight() / 5,
+				getWidth() - 20, getHeight() / 2 + bmp.getHeight() / 5);
+		canvas.drawRect(r, paint);
+		// ///////////////////////////////////////////////////////////////
+		Paint paint2 = new Paint();
+		Log.i("seekbar:",bmp == null ? "null" : "notNull");
+		Rect r2 = new Rect(6, getHeight() / 2 - bmp.getHeight() / 5,
+				getProgress() * (getWidth() - 20) / getMax() + bmp.getWidth() / 2, getHeight() / 2
+						+ bmp.getHeight() / 5);
+		paint2.setColor(Color.BLACK);
+		canvas.drawRect(r2, paint2);
+		//
+		if (getProgress() == getMax()) {
+			canvas.drawBitmap(bmp, getProgress() * (getWidth() - 11) / getMax() - bmp.getWidth() / 2, getHeight() / 2 - bmp.getHeight()
+					/ 2, paint);
+		} else {
+			canvas.drawBitmap(bmp, getProgress() * (getWidth() - 20) / getMax(), getHeight() / 2 - bmp.getHeight()
+					/ 2, paint);
+		}
+	}
+
+	@Override
+	public void setPressed(boolean pressed) {
+		if (pressed && ((View) getParent()).isPressed()) {
+			return;
+		}
+		super.setPressed(pressed);
+	}
+
+	@Override
+	public void setThumb(Drawable thumb) {
+		super.setThumb(thumb);
+	}
+
+	/**
+	 * 初始化
+	 */
+	private void init(Context context) {
+		this.context = context;
+
+		baseBitmap = BitmapFactory.decodeResource(context.getResources(),
+				R.drawable.progress_dot_default);
+
+		bmp = Bitmap.createBitmap(baseBitmap.getWidth(),
+				baseBitmap.getHeight(), baseBitmap.getConfig());
+		initbm();
+
+		//EventBus.getDefault().register(this);
+	}
+
+	private void initbm() {
+		Paint paint = new Paint();
+		pCanvas = new Canvas(bmp);
+		int color = Color.BLACK;
+		float progressR = Color.red(color) / 255f;
+		float progressG = Color.green(color) / 255f;
+		float progressB = Color.blue(color) / 255f;
+		float progressA = Color.alpha(color) / 255f;
+
+		// 根据SeekBar定义RGBA的矩阵
+		float[] src = new float[] { progressR, 0, 0, 0, 0, 0, progressG, 0, 0,
+				0, 0, 0, progressB, 0, 0, 0, 0, 0, progressA, 0 };
+		// 定义ColorMatrix，并指定RGBA矩阵
+		ColorMatrix colorMatrix = new ColorMatrix();
+		colorMatrix.set(src);
+		// 设置Paint的颜色
+		paint.setColorFilter(new ColorMatrixColorFilter(src));
+		// 通过指定了RGBA矩阵的Paint把原图画到空白图片上
+		pCanvas.drawBitmap(baseBitmap, new Matrix(), paint);
+	}
+
+	/**
+	 * 滑动开始
+	 */
+	public void startTrackingTouch() {
+	}
+
+	/**
+	 * 滑动结束
+	 */
+	public void stopTrackingTouch() {
+	}
+
+	/**
+	 * 创建PopupWindow
+	 */
+	private void initPopuptWindow(String timeStr, View v, String lrc) {
+		DisplayMetrics dm = new DisplayMetrics();
+		dm = context.getResources().getDisplayMetrics();
+		int screenWidth = dm.widthPixels;
+		LayoutInflater layoutInflater = LayoutInflater.from(context);
+		View popupWindow = layoutInflater.inflate(
+				R.layout.seekbar_progress_dialog, null);
+		timeTip = (TextView) popupWindow.findViewById(R.id.time_tip);
+		timeTip.setText(timeStr);
+
+		timeLrc = (TextView) popupWindow.findViewById(R.id.time_lrc);
+		timeLrc.setText(lrc);
+
+		mPopupWindow = new PopupWindow(popupWindow, screenWidth, 80, true);
+		// mPopupWindow = new PopupWindow(popupWindow, LayoutParams.FILL_PARENT,
+		// LayoutParams.FILL_PARENT, true);
+		// int[] location = new int[2];
+		// this.getLocationInWindow(location); // 获取在当前窗口内的绝对坐标
+		// this.getLocationOnScreen(location);//获取在整个屏幕内的绝对坐标
+		mPopupWindow.showAsDropDown(v, 0, 0 - v.getHeight() - 80);
+	}
+
+	/**
+	 * 获取PopupWindow实例
+	 */
+	public void popupWindowShow(int timeLongStr, View v, String lrc) {
+		String timeStr = MediaUtils.formatTime(timeLongStr);
+		if (mPopupWindow != null && mPopupWindow.isShowing()) {
+			Message msg = new Message();
+			SeekBarMessage sm = new SeekBarMessage();
+			sm.timeTip = timeStr;
+			sm.timeLrc = lrc;
+			msg.obj = sm;
+			EventBus.getDefault().post(msg);
+		} else {
+			initPopuptWindow(timeStr, v, lrc);
+		}
+	}
+
+	/**
+	 * 关闭窗口
+	 */
+	public void popupWindowDismiss() {
+		if (mPopupWindow != null && mPopupWindow.isShowing()) {
+			mPopupWindow.dismiss();
+		}
+	}
+
+}

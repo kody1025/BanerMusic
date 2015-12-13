@@ -1,0 +1,13 @@
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/white</item>
+    </style>
+
+    <style name="AnimBottom" parent="android:Animation">
+        <item name="@android:windowEnterAnimation">@anim/window_enter</item>  //进入时的动画
+        <item name="@android:windowExitAnimation">@anim/window_exit</item>    //退出时的动画
+    </style>
+
+</resources>

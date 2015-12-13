@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">伴儿音乐</string>
+    <string name="title_activity_main">伴儿音乐</string>
+    <string name="title_activity_my_music">MyMusicActivity</string>
+    <string name="musiclist_header_albumn_desc">专辑介绍：</string>
+    <string name="musiclist_header_song_count">首歌曲</string>
+    <string name="service_error">请求服务失败！</string>
+
+<!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+</resources>
