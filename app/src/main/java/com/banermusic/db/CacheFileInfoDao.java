@@ -1,15 +1,15 @@
 package com.banermusic.db;
 
-import java.util.Collection;
-import java.util.Map;
-
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
-import com.bedpotato.musicplayerproxy.App;
+import com.banermusic.app.App;
+
+import java.util.Collection;
+import java.util.Map;
 
 public class CacheFileInfoDao extends SQLiteOpenHelper {
 
@@ -27,7 +27,7 @@ public class CacheFileInfoDao extends SQLiteOpenHelper {
 	}
 
 	private CacheFileInfoDao() {
-		super(App.mContext, DB_NAME, null, DB_VERSION);
+		super(App.getContext(), DB_NAME, null, DB_VERSION);
 	}
 
 	public void insertOrUpdate(String fileName, int fileSize) {
@@ -83,7 +83,6 @@ public class CacheFileInfoDao extends SQLiteOpenHelper {
 			}
 
 			cursor.close();
-			cursor = null;
 		}
 		if (t == null) {
 			return -1;

@@ -1,5 +1,13 @@
 package com.banermusic.services.proxy;
 
+import android.util.Log;
+
+import com.banermusic.constant.BaseConstants;
+import com.banermusic.logger.MyLogger;
+
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpUriRequest;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -8,21 +16,16 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.StringTokenizer;
 
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpUriRequest;
-
-import android.util.Log;
-
-import com.bedpotato.musicplayerproxy.Constants;
-
 /**
  * 代理
  * 
- * @author 阿伦
+ * @author Kody
  * 
  */
 public class MediaPlayerProxy implements Runnable {
 	private static final String LOG_TAG = MediaPlayerProxy.class.getSimpleName();
+
+	private static MyLogger logger = MyLogger.getLogger(MediaPlayerProxy.class.getName());
 
 	private int port;
 
@@ -86,11 +89,10 @@ public class MediaPlayerProxy implements Runnable {
 					continue;
 				}
 				Log.d(LOG_TAG, "client connected");
-				HttpUriRequest request = readRequest(client);
-				if (request != null) {
-					downloadThread = new RequestDealThread(request, client);
-					downloadThread.start();
-				}
+				logger.i("server socket client received");
+				downloadThread = new RequestDealThread(client);
+				downloadThread.start();
+
 			} catch (SocketTimeoutException e) {
 				// Do nothing
 			} catch (IOException e) {
@@ -100,54 +102,5 @@ public class MediaPlayerProxy implements Runnable {
 		Log.d(LOG_TAG, "Proxy interrupted. Shutting down.");
 	}
 
-	private HttpUriRequest readRequest(Socket client) {
-		// 得到Request String
-		HttpUriRequest request = null;
-		int bytes_read;
-		byte[] local_request = new byte[1024];
-		String requestStr = "";
-		try {
-			while ((bytes_read = client.getInputStream().read(local_request)) != -1) {
-				byte[] tmpBuffer = new byte[bytes_read];
-				System.arraycopy(local_request, 0, tmpBuffer, 0, bytes_read);
-				String str = new String(tmpBuffer);
-				Log.i(LOG_TAG + " Header-> ", str);
-				requestStr = requestStr + str;
-				if (requestStr.contains("GET") && requestStr.contains(Constants.HTTP_END)) {
-					break;
-				}
-			}
-		} catch (IOException e) {
-			Log.e(LOG_TAG, "获取Request Header异常", e);
-			return request;
-		}
 
-		if (requestStr == "") {
-			Log.i(LOG_TAG, "请求头为空，获取异常");
-			return request;
-		}
-
-		// 将Request String组合为HttpUriRequest
-		String[] requestParts = requestStr.split(Constants.LINE_BREAK);
-		StringTokenizer st = new StringTokenizer(requestParts[0]);
-		String method = st.nextToken();
-		String uri = st.nextToken();
-
-		Log.d(LOG_TAG + " URL-> ", uri);
-		request = new HttpGet(uri.substring(1));
-		for (int i = 1; i < requestParts.length; i++) {
-			int separatorLocation = requestParts[i].indexOf(":");
-    		String name = requestParts[i].substring(0, separatorLocation).trim();
-			String value = requestParts[i].substring(separatorLocation + 1).trim();
-			// 不添加Host Header，因为URL的Host为127.0.0.1
-			if (!name.equals(Constants.HOST)) {
-				request.addHeader(name, value);
-			}
-		}
-		// 如果没有Range，统一添加默认Range,方便后续处理
-		if (request.getFirstHeader(Constants.RANGE) == null) {
-			request.addHeader(Constants.RANGE, Constants.RANGE_PARAMS_0);
-		}
-		return request;
-	}
 }

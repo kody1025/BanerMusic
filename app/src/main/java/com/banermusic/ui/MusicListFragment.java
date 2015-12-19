@@ -58,6 +58,8 @@ import de.greenrobot.event.EventBus;
 
 public class MusicListFragment extends Fragment implements AbsListView.OnItemClickListener,View.OnClickListener {
 
+    private static final String ARG_ALBUMBEAN = "albumnBean";
+
     private Context context;
     private ImageLoader mImageLoader;
 
@@ -93,10 +95,26 @@ public class MusicListFragment extends Fragment implements AbsListView.OnItemCli
 
     private ImageView lastPlayFlagImageView;
 
+    private AlbumBean albumBean;
+
+    public static Fragment NewInstance(AlbumBean albumBean){
+        MusicListFragment fragment = new MusicListFragment();
+        Bundle args = new Bundle();
+        args.putSerializable(ARG_ALBUMBEAN, albumBean);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if(getArguments() != null){
+            albumBean = (AlbumBean) getArguments().getSerializable(ARG_ALBUMBEAN);
+        }
+
         EventBus.getDefault().register(this);
+
         context = getContext();
         mediaManage = mediaManage.getMediaManage(context);
 
@@ -118,14 +136,16 @@ public class MusicListFragment extends Fragment implements AbsListView.OnItemCli
         // Set OnItemClickListener so we can be notified on item clicks
         mListView.setOnItemClickListener(this);
 
-        albumsLayout = (LinearLayout) LayoutInflater.from(getContext()).inflate(R.layout.fragment_album_gridview, null);
+        /*albumsLayout = (LinearLayout) LayoutInflater.from(getContext()).inflate(R.layout.fragment_album_gridview, null);
         gvAlbum = (MyGridView) albumsLayout.findViewById(R.id.gvAlbum);
-        gvAlbum.setHaveScrollbar(false);
+        gvAlbum.setHaveScrollbar(false);*/
 
         musicListHeaderLayout = (LinearLayout) LayoutInflater.from(context).inflate(R.layout.musiclist_header, null);
         ivAlbumnImage = (ImageView) musicListHeaderLayout.findViewById(R.id.musicList_ivAlbumnImage);
         tvAlbumnDesc = (TextView) musicListHeaderLayout.findViewById(R.id.musicList_tvAlbumnDesc);
         tvSongCount = (TextView) musicListHeaderLayout.findViewById(R.id.musicList_tvSongCount);
+
+        loadData();
 
         return view;
     }
@@ -174,6 +194,62 @@ public class MusicListFragment extends Fragment implements AbsListView.OnItemCli
         EventBus.getDefault().unregister(this);
     }
 
+
+    private void loadData(){
+        CommonPost.albumSong(context, albumBean.getId(), new RequestListener() {
+            @Override
+            public void onResponse(String response) {
+                SongBean songBean = JSON.parseObject(response, SongBean.class);
+                if (songBean != null && !songBean.getRet_code().equals("0")) {
+                    SongMessage songMessage = new SongMessage(SongMessage.ERROR);
+                    songMessage.setErrorMessage(songBean.getRet_msg());
+                    EventBus.getDefault().post(songMessage);
+                    return;
+                }
+
+                songBeanList = songBean.getResult_list();
+                if (songBeanList != null && songBeanList.size() > 0) {
+
+                    String album_icon = albumBean.getAlbum_icon() == null ?
+                            songBeanList.get(0).getAlbum_icon() : albumBean.getAlbum_icon();
+                    String album_desc = albumBean.getAlbum_desc() == null ?
+                            songBeanList.get(0).getAlbum_desc() : albumBean.getAlbum_desc();
+
+                    ImageLoader.ImageListener listener = ImageLoader.getImageListener(ivAlbumnImage,R.drawable.home_loading,R.drawable.home_loading);
+                    mImageLoader.get(album_icon, listener);
+                    tvAlbumnDesc.setText(album_desc);
+                    if(songCountText == null){
+                        songCountText = getResources().getText(R.string.musiclist_header_song_count);
+                    }
+                    tvSongCount.setText(String.valueOf(songBeanList.size())+songCountText);
+                    mListView.addHeaderView(musicListHeaderLayout);
+
+                    mAdapter = new MusicListAdapter(context, songBeanList);
+                    mListView.setAdapter(mAdapter);
+
+                    View view = new View(context);
+                    AbsListView.LayoutParams layoutParams = new AbsListView.LayoutParams(AbsListView.LayoutParams.MATCH_PARENT,200);
+                    view.setLayoutParams(layoutParams);
+                    mListView.addFooterView(view);
+
+                    if (!MediaManage.isPlaying()) {
+                        int index = new Random().nextInt(songBeanList.size());
+                        SongBean songBean1 = songBeanList.get(index);
+                        mediaManage.setDataSource(songBeanList, songBean1.getAlbum_id(), songBean1.getId());
+                        EventBus.getDefault().post(new SongMessage(SongMessage.SELECTPLAY));
+                    }
+                }
+            }
+
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                SongMessage songMessage = new SongMessage(SongMessage.ERROR);
+                songMessage.setErrorMessage(getResources().getText(R.string.service_error).toString());
+                EventBus.getDefault().post(songMessage);
+            }
+        });
+    }
+
     public void onEventMainThread(SongMessage songMessage){
         switch (songMessage.getType()){
             case SongMessage.PLAY_UI:
@@ -185,7 +261,7 @@ public class MusicListFragment extends Fragment implements AbsListView.OnItemCli
         }
     }
 
-    public void onEventMainThread(FragmentMessage fragmentMessage){
+    /*public void onEventMainThread(FragmentMessage fragmentMessage){
        if(fragmentMessage.getType() == FragmentMessage.DATAMESSAGE && fragmentMessage.getData() instanceof SceneBean){
 
            scene = (SceneBean)fragmentMessage.getData();
@@ -401,7 +477,7 @@ public class MusicListFragment extends Fragment implements AbsListView.OnItemCli
 
 
        }
-    }
+    }*/
 
     @Override
     public void onResume() {

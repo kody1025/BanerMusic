@@ -6,6 +6,6 @@
     <string name="musiclist_header_song_count">首歌曲</string>
     <string name="service_error">请求服务失败！</string>
 
-<!-- TODO: Remove or change this placeholder text -->
+    <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>

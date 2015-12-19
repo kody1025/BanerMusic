@@ -91,6 +91,7 @@ public class SongDB {
                         }
                         fr.close();
                         List<SongBean> list = JSON.parseArray(stringBuffer.toString().trim(),SongBean.class);
+
                         if(list != null && list.size() > 0){
                             songList = list;
                         }

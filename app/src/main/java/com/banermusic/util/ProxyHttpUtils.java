@@ -1,6 +1,9 @@
 package com.banermusic.util;
 
-import java.io.IOException;
+import android.util.Log;
+
+import com.banermusic.constant.BaseConstants;
+import com.banermusic.logger.MyLogger;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpResponseFactory;
@@ -8,6 +11,7 @@ import org.apache.http.ParseException;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
 import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.conn.ClientConnectionOperator;
 import org.apache.http.conn.OperatedClientConnection;
@@ -28,13 +32,12 @@ import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.util.CharArrayBuffer;
 
-import android.util.Log;
-
-import com.bedpotato.musicplayerproxy.Constants;
+import java.io.IOException;
 
 public class ProxyHttpUtils {
 
-	private static final String LOG_TAG = HttpUtils.class.getSimpleName();
+	private static final String LOG_TAG = ProxyHttpUtils.class.getSimpleName();
+	private static MyLogger logger = MyLogger.getLogger(ProxyHttpUtils.class.getName());
 
 	/**
 	 * 生成返回MediaPlayer的Response Header
@@ -51,7 +54,7 @@ public class ProxyHttpUtils {
 		sb.append("Content-Length: ").append(rangeEnd - rangeStart + 1).append("\n");
 		sb.append("Connection: keep-alive").append("\n");
 		sb.append("Accept-Ranges: bytes").append("\n");
-		String contentRangeValue = String.format(Constants.CONTENT_RANGE_PARAMS + "%d-%d/%d", rangeStart, rangeEnd,
+		String contentRangeValue = String.format(BaseConstants.CONTENT_RANGE_PARAMS + "%d-%d/%d", rangeStart, rangeEnd,
 				fileLength);
 		sb.append("Content-Range: ").append(contentRangeValue).append("\n");
 		sb.append("\n");
@@ -61,39 +64,44 @@ public class ProxyHttpUtils {
 	/**
 	 * 发送请求,得到Response
 	 * 
-	 * @param url
+	 * @param request
 	 * @return
 	 */
 	public static HttpResponse send(HttpUriRequest request) {
 		/*
 		 * 添加需要的Header
 		 */
-		request.removeHeaders(Constants.USER_AGENT);
-		request.addHeader(Constants.USER_AGENT, "TrafficRadio_BedPotato_Exclusive_UA");
-		// TODO Others Header
+		request.removeHeaders(BaseConstants.USER_AGENT);
+		request.addHeader(BaseConstants.USER_AGENT, "TrafficRadio_BedPotato_Exclusive_UA");
+
 		/*
 		 * 发送请求
 		 */
-		DefaultHttpClient seed = new DefaultHttpClient();
-		SchemeRegistry registry = new SchemeRegistry();
+		/*SchemeRegistry registry = new SchemeRegistry();
 		registry.register(new Scheme("http", PlainSocketFactory.getSocketFactory(), 80));
-		SingleClientConnManager mgr = new MyClientConnManager(seed.getParams(), registry);
-		DefaultHttpClient http = new DefaultHttpClient(mgr, seed.getParams());
+		SingleClientConnManager mgr = new MyClientConnManager(BaseConstants.httpClient.getParams(), registry);
+		HttpClient http = new DefaultHttpClient(mgr, BaseConstants.httpClient.getParams());
 		http.getParams().setParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 20000);// 连接时间20s
-		http.getParams().setParameter(CoreConnectionPNames.SO_TIMEOUT, 60000);
+		http.getParams().setParameter(CoreConnectionPNames.SO_TIMEOUT, 60000);*/
 		HttpResponse response = null;
 		try {
 			Log.d(LOG_TAG, "sending request");
-			response = http.execute(request);
-			Log.d(LOG_TAG, "response receive");
+			logger.i("sending request");
+			response = BaseConstants.httpClient.execute(request);
+			Log.d(LOG_TAG, "response received");
+			logger.i("response received");
+			logger.i("Content length:"+ response.getEntity().getContentLength());
 		} catch (ClientProtocolException e) {
 			Log.e(LOG_TAG, "Error downloading", e);
+			logger.i("Error downloading" + e.toString());
 		} catch (IOException e) {
 			Log.e(LOG_TAG, "Error downloading", e);
+			logger.i("Error downloading" + e.toString());
 		}
 		StatusLine line = response.getStatusLine();
 		if (line.getStatusCode() != 200 && line.getStatusCode() != 206) {
 			Log.i(LOG_TAG, "ERROR Response Status:" + line.toString());
+			logger.i("ERROR Response Status:" + line.toString());
 			return null;
 		}else {
 			return response;

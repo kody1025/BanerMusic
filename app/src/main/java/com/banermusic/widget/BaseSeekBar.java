@@ -81,7 +81,7 @@ public class BaseSeekBar extends SeekBar {
 		canvas.drawRect(r, paint);
 		// ///////////////////////////////////////////////////////////////
 		Paint paint2 = new Paint();
-		Log.i("seekbar:",bmp == null ? "null" : "notNull");
+
 		Rect r2 = new Rect(6, getHeight() / 2 - bmp.getHeight() / 5,
 				getProgress() * (getWidth() - 20) / getMax() + bmp.getWidth() / 2, getHeight() / 2
 						+ bmp.getHeight() / 5);

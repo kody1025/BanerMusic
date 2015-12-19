@@ -8,6 +8,7 @@ import android.media.AudioManager.OnAudioFocusChangeListener;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnCompletionListener;
 import android.media.MediaPlayer.OnErrorListener;
+import android.net.Uri;
 import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
@@ -19,10 +20,12 @@ import com.banermusic.event.SongMessage;
 import com.banermusic.constant.BaseConstants;
 import com.banermusic.logger.MyLogger;
 import com.banermusic.manage.MediaManage;
+import com.banermusic.services.proxy.MediaPlayerProxy;
 
 import java.io.File;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.net.URI;
 
 import de.greenrobot.event.EventBus;
 
@@ -49,12 +52,15 @@ public class MediaPlayerService extends Service {
 
 	private SongBean songBean;
 
-	private Boolean isFirstStart = true;
+	//private Boolean isFirstStart = true;
+	boolean isPrint = true;
 
 	/**
 	 * 音频管理
 	 */
 	private AudioManager audioManager;
+
+	private MediaPlayerProxy proxy;
 
 	@Override
 	public IBinder onBind(Intent arg0) {
@@ -66,6 +72,10 @@ public class MediaPlayerService extends Service {
 		context = MediaPlayerService.this.getBaseContext();
 		audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
+		proxy = new MediaPlayerProxy();
+		proxy.init();
+		proxy.start();
+
 		EventBus.getDefault().register(this);
 	}
 
@@ -73,10 +83,10 @@ public class MediaPlayerService extends Service {
 	@Deprecated
 	public void onStart(Intent intent, int startId) {
 		isServiceRunning = true;
-		if (!isFirstStart) {
+		/*if (!isFirstStart) {
 			isFirstStart = false;
 			play();
-		}
+		}*/
 		logger.i("------MediaPlayerService被创建了------");
 	}
 
@@ -96,18 +106,21 @@ public class MediaPlayerService extends Service {
 		}
 
 		try {
-			if (player == null && this.STATUS == STOPED) {
+
+			/*if (player == null && this.STATUS == STOPED) {
 				player = new MediaPlayer();
-				player.setOnPreparedListener(onPreparedListener);
-				player.setOnCompletionListener(onCompletionListener);
-				player.setOnErrorListener(onErrorListener);
 			}else if(this.STATUS == PLAYING || this.STATUS == PAUSING){
 				player.stop();
 				// 播放器重置
 				player.reset();
-			}
+			}*/
 
 			this.STATUS = PREPARING;
+
+			if(player != null){
+				player.stop();
+				player.release();
+			}
 
 			// 检查本地路径是否存在歌曲文件，不存在则播放网络文件
 			String path = null;
@@ -117,18 +130,204 @@ public class MediaPlayerService extends Service {
 					path = songBean.getPath();
 				}
 			}else{
+				// 获取代理URL
+				path = proxy.getProxyURL(songBean.getSong_url());
+				//path = songBean.getSong_url();
+			}
+
+			Uri uri = Uri.parse(path);
+
+			player = MediaPlayer.create(MediaPlayerService.this, uri);
+			if(player != null){
+
+				player.setOnCompletionListener(new OnCompletionListener() {
+					@Override
+					public void onCompletion(MediaPlayer mp) {
+						// 下一首
+						SongMessage songMessage = new SongMessage(SongMessage.FINISHNEXTMUSICED);
+						EventBus.getDefault().post(songMessage);
+					}
+				});
+
+				player.setOnErrorListener(new OnErrorListener() {
+					@Override
+					public boolean onError(MediaPlayer mp, int what, int extra) {
+						switch (what) {
+							case MediaPlayer.MEDIA_ERROR_IO:
+								logger.e("MediaPlayer Error:MEDIA_ERROR_IO");
+								break;
+							case MediaPlayer.MEDIA_ERROR_MALFORMED:
+								logger.e("MediaPlayer Error:MEDIA_ERROR_MALFORMED");
+								break;
+							case MediaPlayer.MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK:
+								logger.e("MediaPlayer Error:MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK");
+								break;
+							case MediaPlayer.MEDIA_ERROR_SERVER_DIED:
+								logger.e("MediaPlayer Error:MEDIA_ERROR_SERVER_DIED");
+								break;
+							case MediaPlayer.MEDIA_ERROR_TIMED_OUT:
+								logger.e("MediaPlayer Error:MEDIA_ERROR_TIMED_OUT");
+								break;
+							case MediaPlayer.MEDIA_ERROR_UNKNOWN:
+								logger.e("MediaPlayer Error:MEDIA_ERROR_UNKNOWN");
+								break;
+							case MediaPlayer.MEDIA_ERROR_UNSUPPORTED:
+								logger.e("MediaPlayer Error:MEDIA_ERROR_UNSUPPORTED");
+								break;
+							default:
+								logger.e("MediaPlayer Error:" + what);
+								break;
+						}
+
+						songMessage = new SongMessage(SongMessage.ERROR);
+						String errorMessage = "播放歌曲出错，跳转下一首!!";
+						songMessage.setErrorMessage(errorMessage);
+						EventBus.getDefault().post(songMessage);
+						try {
+							Thread.sleep(1000);
+						} catch (InterruptedException ex) {
+							ex.printStackTrace();
+						}
+
+						player.reset();
+						MediaPlayerService.STATUS = STOPED;
+
+						if (songMessage != null) {
+							// 跳转下一首
+							songMessage = new SongMessage(SongMessage.NEXTMUSIC);
+							EventBus.getDefault().post(songMessage);
+						}
+						return true;
+					}
+				});
+
+				player.setOnBufferingUpdateListener(new MediaPlayer.OnBufferingUpdateListener() {
+					@Override
+					public void onBufferingUpdate(MediaPlayer mp, int percent) {
+						if (percent <= 100) {
+							SongMessage songMessage = new SongMessage(SongMessage.BUFFER_UPDATE);
+							songBean.setBufferProgress(player.getDuration() / 100 * percent);
+							songMessage.setSongBean(songBean);
+							EventBus.getDefault().post(songMessage);
+
+							if (System.currentTimeMillis() / 500 % 1 == 0) {
+								if (isPrint) {
+									logger.i("Buffering Update:"+ percent+"%");
+									isPrint = false;
+								}
+							} else {
+								isPrint = true;
+							}
+						}
+					}
+				});
+
+				logger.i("播放器准备就绪");
+				// 按照上次进度继续播放
+				if (songBean.getPlayProgress() != 0) {
+					player.seekTo((int) songBean.getPlayProgress());
+				}
+
+				songBean.setDuration(player.getDuration());
+
+				// 请求播放的音频焦点
+				int result = audioManager.requestAudioFocus(afChangeListener,
+						// 指定所使用的音频流
+						AudioManager.STREAM_MUSIC,
+						// 请求长时间的音频焦点
+						AudioManager.AUDIOFOCUS_GAIN);
+				if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+					logger.i("获取音频焦点成功");
+
+					player.start();
+					MediaPlayerService.STATUS = PLAYING;
+					if (playerThread == null) {
+						playerThread = new Thread(new PlayerRunable());
+						playerThread.start();
+					}
+
+					// 发送播放消息，其他页面更新显示
+					songMessage = new SongMessage(SongMessage.PLAY_UI);
+					songMessage.setSongBean(songBean);
+					EventBus.getDefault().post(songMessage);
+
+				} else {
+					logger.i("获取音频焦点失败!!");
+				}
+
+			}else{
+				String errorMessage = "播放歌曲出错";
+				songMessage = new SongMessage(SongMessage.ERROR);
+				songMessage.setErrorMessage(errorMessage);
+				EventBus.getDefault().post(songMessage);
+				MediaPlayerService.STATUS = STOPED;
+			}
+
+
+			/*player.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+				@Override
+				public void onPrepared(MediaPlayer mp) {
+					logger.i("播放器准备就绪");
+					// 按照上次进度继续播放
+					if (songBean.getPlayProgress() != 0) {
+						player.seekTo((int) songBean.getPlayProgress());
+					}
+
+					songBean.setDuration(player.getDuration());
+
+					// 请求播放的音频焦点
+					int result = audioManager.requestAudioFocus(afChangeListener,
+							// 指定所使用的音频流
+							AudioManager.STREAM_MUSIC,
+							// 请求长时间的音频焦点
+							AudioManager.AUDIOFOCUS_GAIN);
+					if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+						logger.i("获取音频焦点成功");
+
+						player.start();
+						MediaPlayerService.STATUS = PLAYING;
+						if (playerThread == null) {
+							playerThread = new Thread(new PlayerRunable());
+							playerThread.start();
+						}
+
+						// 发送播放消息，其他页面更新显示
+						songMessage = new SongMessage(SongMessage.PLAY_UI);
+						songMessage.setSongBean(songBean);
+						EventBus.getDefault().post(songMessage);
+
+					} else {
+						logger.i("获取音频焦点失败!!");
+					}
+				}
+			});*/
+
+
+
+
+			// 检查本地路径是否存在歌曲文件，不存在则播放网络文件
+			/*String path = null;
+			if(songBean.getPath() != null){
+				File file = new File(songBean.getPath());
+				if(file.exists()){
+					path = songBean.getPath();
+				}
+			}else{
+				// 获取代理URL
+				//path = proxy.getProxyURL(songBean.getSong_url());
 				path = songBean.getSong_url();
 			}
 
 			player.setDataSource(path);
-			//logger.i("设置歌曲播放路径：" + path);
-			player.prepareAsync();
+			player.prepareAsync();*/
 
 		} catch (Exception e) {
 			StringWriter sw = new StringWriter();
 			e.printStackTrace(new PrintWriter(sw));
 			logger.e(sw.toString());
 
+			MediaPlayerService.STATUS = STOPED;
+
 			songMessage = new SongMessage(SongMessage.ERROR);
 			String errorMessage = "播放歌曲出错，跳转下一首!!";
 			songMessage.setErrorMessage(errorMessage);
@@ -145,119 +344,7 @@ public class MediaPlayerService extends Service {
 			}
 		}
 
-		/*player.setOnBufferingUpdateListener(new MediaPlayer.OnBufferingUpdateListener() {
-			@Override
-			public void onBufferingUpdate(MediaPlayer mp, int percent) {
-				if(percent < 100){
-					SongMessage songMessage = new SongMessage(SongMessage.BUFFER_UPDATE);
-					songBean.setBufferProgress(player.getDuration() / 100 * percent);
-					songMessage.setSongBean(songBean);
-					EventBus.getDefault().post(songMessage);
-				}
-			}
-		});*/
 	}
-
-	MediaPlayer.OnErrorListener onErrorListener = new OnErrorListener() {
-
-		@Override
-		public boolean onError(MediaPlayer mp, int what, int arg2) {
-
-			switch (what){
-				case MediaPlayer.MEDIA_ERROR_IO:
-					logger.e("MediaPlayer Error:MEDIA_ERROR_IO");
-					break;
-				case MediaPlayer.MEDIA_ERROR_MALFORMED:
-					logger.e("MediaPlayer Error:MEDIA_ERROR_MALFORMED");
-					break;
-				case MediaPlayer.MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK:
-					logger.e("MediaPlayer Error:MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK");
-					break;
-				case MediaPlayer.MEDIA_ERROR_SERVER_DIED:
-					logger.e("MediaPlayer Error:MEDIA_ERROR_SERVER_DIED");
-					break;
-				case MediaPlayer.MEDIA_ERROR_TIMED_OUT:
-					logger.e("MediaPlayer Error:MEDIA_ERROR_TIMED_OUT");
-					break;
-				case MediaPlayer.MEDIA_ERROR_UNKNOWN:
-					logger.e("MediaPlayer Error:MEDIA_ERROR_UNKNOWN");
-					break;
-				case MediaPlayer.MEDIA_ERROR_UNSUPPORTED:
-					logger.e("MediaPlayer Error:MEDIA_ERROR_UNSUPPORTED");
-					break;
-				default:
-					logger.e("MediaPlayer Error:"+what);
-					break;
-			}
-
-			songMessage = new SongMessage(SongMessage.ERROR);
-			String errorMessage = "播放歌曲出错，跳转下一首!!";
-			songMessage.setErrorMessage(errorMessage);
-			EventBus.getDefault().post(songMessage);
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException ex) {
-				ex.printStackTrace();
-			}
-
-			player.reset();
-
-			if (songMessage != null) {
-				// 跳转下一首
-				songMessage = new SongMessage(SongMessage.NEXTMUSIC);
-				EventBus.getDefault().post(songMessage);
-			}
-			return true;
-		}
-	};
-
-	MediaPlayer.OnCompletionListener onCompletionListener = new OnCompletionListener() {
-		@Override
-		public void onCompletion(MediaPlayer mp) {
-			// 下一首
-			SongMessage songMessage = new SongMessage(SongMessage.FINISHNEXTMUSICED);
-			EventBus.getDefault().post(songMessage);
-		}
-	};
-
-	MediaPlayer.OnPreparedListener onPreparedListener = new MediaPlayer.OnPreparedListener() {
-		@Override
-		public void onPrepared(MediaPlayer mp) {
-
-			logger.i("播放器准备就绪");
-			// 按照上次进度继续播放
-			if (songBean.getPlayProgress() != 0) {
-				player.seekTo((int) songBean.getPlayProgress());
-			}
-
-			songBean.setDuration(player.getDuration());
-
-			// 请求播放的音频焦点
-			int result = audioManager.requestAudioFocus(afChangeListener,
-					// 指定所使用的音频流
-					AudioManager.STREAM_MUSIC,
-					// 请求长时间的音频焦点
-					AudioManager.AUDIOFOCUS_GAIN);
-			if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-				logger.i("获取音频焦点成功");
-
-				player.start();
-				MediaPlayerService.STATUS = PLAYING;
-				if (playerThread == null) {
-					playerThread = new Thread(new PlayerRunable());
-					playerThread.start();
-				}
-
-				// 发送播放消息，其他页面更新显示
-				songMessage = new SongMessage(SongMessage.PLAY_UI);
-				songMessage.setSongBean(songBean);
-				EventBus.getDefault().post(songMessage);
-
-			} else {
-				logger.i("获取音频焦点失败!!");
-			}
-		}
-	};
 
 	OnAudioFocusChangeListener afChangeListener = new OnAudioFocusChangeListener() {
 		public void onAudioFocusChange(int focusChange) {
@@ -335,26 +422,29 @@ public class MediaPlayerService extends Service {
 		public void run() {
 			while (true) {
 				try {
-					Thread.sleep(100);
+					Thread.sleep(200);
 
-					if (player != null && player.isPlaying()) {
+					if(MediaPlayerService.STATUS != PREPARING && MediaPlayerService.STATUS != STOPED){
+						if (player != null && player.isPlaying()) {
 
-						if (songBean != null) {
-							songBean.setPlayProgress(player
-									.getCurrentPosition());
+							if (songBean != null) {
+								songBean.setPlayProgress(player
+										.getCurrentPosition());
 
-							// 没有订阅此事件时，不发送事件
-							if(!isRegister){
-								if(EventBus.getDefault().hasSubscriberForEvent(ProgressMessage.class)){
-									isRegister = true;
-								}else{
-									continue;
+								// 没有订阅此事件时，不发送事件
+								if(!isRegister){
+									if(EventBus.getDefault().hasSubscriberForEvent(ProgressMessage.class)){
+										isRegister = true;
+									}else{
+										continue;
+									}
 								}
+								ProgressMessage.getInstance().setSongBean(songBean);
+								EventBus.getDefault().post(ProgressMessage.getInstance());
 							}
-							ProgressMessage.getInstance().setSongBean(songBean);
-							EventBus.getDefault().post(ProgressMessage.getInstance());
 						}
 					}
+
 				} catch (InterruptedException e) {
 					StringWriter sw = new StringWriter();
 					e.printStackTrace(new PrintWriter(sw));

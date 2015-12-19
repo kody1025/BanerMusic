@@ -1,49 +1,53 @@
 package com.banermusic.util;
 
+import android.os.StatFs;
+import android.util.Log;
+
+import com.banermusic.constant.BaseConstants;
+import com.banermusic.db.CacheFileInfoDao;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URI;
 
-import android.util.Log;
-
-import com.bedpotato.musicplayerproxy.Constants;
-import com.bedpotato.musicplayerproxy.db.CacheFileInfoDao;
-
 public class FileDownloadUtils {
-	private static final String LOG_TAG = ProxyFileUtils.class.getSimpleName();
+	private static final String LOG_TAG = FileDownloadUtils.class.getSimpleName();
 
-	private static ProxyFileUtils fileUtilsByMediaPlayer;
-	private static ProxyFileUtils fileUtilsByPreLoader;
+	private static FileDownloadUtils fileUtilsByMediaPlayer;
+	private static FileDownloadUtils fileUtilsByPreLoader;
 
-	public static ProxyFileUtils getInstance(URI uri, boolean isUseByMediaPlayer) {
+	private String downloadPath = BaseConstants.PATH_TEMP + File.separator + "download";
+
+	public static FileDownloadUtils getInstance(URI uri, boolean isUseByMediaPlayer) {
 		// 如果文件名有错误，返回空Utils
 		String name = getValidFileName(uri);
 		if (name == null || name.length() <= 0) {
-			ProxyFileUtils utils = new ProxyFileUtils(null);
+			FileDownloadUtils utils = new FileDownloadUtils(null);
 			utils.setEnableFalse();
 			return utils;
 		}
 		// 如果是预加载，如果MediaPlayer正在使用文件，则不预加载，返回空Utils
 		if (!isUseByMediaPlayer) {
 			if (fileUtilsByMediaPlayer != null && fileUtilsByMediaPlayer.getFileName().equals(name)) {
-				ProxyFileUtils utils = new ProxyFileUtils(null);
+				FileDownloadUtils utils = new FileDownloadUtils(null);
 				utils.setEnableFalse();
 				return utils;
 			}
 		}
 		// 创建Utils，关闭之前Util。如果是MediaPlayer使用文件Preloader也在使用，则关闭Preloader的Utils
 		if (isUseByMediaPlayer) {
-			if (fileUtilsByPreLoader != null && fileUtilsByPreLoader.getFileName().equals(name)) {
-				close(fileUtilsByPreLoader, false);
-			}
-			close(fileUtilsByMediaPlayer, true);
-			fileUtilsByMediaPlayer = new ProxyFileUtils(name);
-			return fileUtilsByMediaPlayer;
+			//if (fileUtilsByPreLoader != null && fileUtilsByPreLoader.getFileName().equals(name)) {
+			//	close(fileUtilsByPreLoader, false);
+			//}
+			//close(fileUtilsByMediaPlayer, true);
+			//fileUtilsByMediaPlayer = new FileDownloadUtils(name);
+			//return fileUtilsByMediaPlayer;
+			return new FileDownloadUtils(name);
 		} else {
 			close(fileUtilsByPreLoader, false);
-			fileUtilsByPreLoader = new ProxyFileUtils(name);
+			fileUtilsByPreLoader = new FileDownloadUtils(name);
 			return fileUtilsByPreLoader;
 		}
 	}
@@ -61,21 +65,19 @@ public class FileDownloadUtils {
 	 */
 	private boolean isSdAvaliable() {
 		// 判断外部存储器是否可用
-		File dir = new File(Constants.DOWNLOAD_PATH);
+		File dir = new File(downloadPath);
 		if (!dir.exists()) {
 			dir.mkdirs();
 			if(!dir.exists()){
 				return false;
 			}
 		}
-		// 删除部分缓存文件
-		ProxyUtils.asynRemoveBufferFile(Constants.CACHE_FILE_NUMBER);
+
 		// 可用空间大小是否大于SD卡预留最小值
-		long freeSize = ProxyUtils.getAvailaleSize(Constants.DOWNLOAD_PATH);
-		if (freeSize > Constants.SD_REMAIN_SIZE) {
+		long freeSize = this.getAvailaleSize(downloadPath);
+		if (freeSize > BaseConstants.SD_REMAIN_SIZE) {
 			return true;
 		} else {
-
 			return false;
 		}
 	}
@@ -92,9 +94,9 @@ public class FileDownloadUtils {
 		}
 
 		try {
-			file = new File(Constants.DOWNLOAD_PATH + name);
+			file = new File(downloadPath + File.separator + name);
 			if (!file.exists()) {
-				File dir = new File(Constants.DOWNLOAD_PATH);
+				File dir = new File(downloadPath);
 				dir.mkdirs();
 				file.createNewFile();
 			}
@@ -103,7 +105,7 @@ public class FileDownloadUtils {
 			isEnable = true;
 		} catch (IOException e) {
 			isEnable = false;
-			Log.e(LOG_TAG, "文件操作失败，无SD？", e);
+			Log.e(LOG_TAG, "文件操作失败", e);
 		}
 	}
 
@@ -128,6 +130,8 @@ public class FileDownloadUtils {
 	}
 
 	public boolean delete() {
+		// 关闭占用文件
+		this.close();
 		return file.delete();
 	}
 
@@ -179,7 +183,7 @@ public class FileDownloadUtils {
 		}
 	}
 
-	public static void close(ProxyFileUtils fileUtils, boolean isUseByMediaPlayer) {
+	public static void close(FileDownloadUtils fileUtils, boolean isUseByMediaPlayer) {
 		if (isUseByMediaPlayer) {
 			if (fileUtilsByMediaPlayer != null && fileUtilsByMediaPlayer == fileUtils) {
 				fileUtilsByMediaPlayer.setEnableFalse();
@@ -222,7 +226,7 @@ public class FileDownloadUtils {
 	 * @param url
 	 * @return
 	 */
-	static protected String getValidFileName(URI uri) {
+	protected static String getValidFileName(URI uri) {
 		String path = uri.getRawPath();
 		String name = path.substring(path.lastIndexOf("/"));
 		name = name.replace("\\", "");
@@ -236,5 +240,34 @@ public class FileDownloadUtils {
 		name = name.replace("|", "");
 		name = name.replace(" ", "_"); // 前面的替换会产生空格,最后将其一并替换掉
 		return name;
+	}
+
+	/**
+	 * 获取外部存储器可用的空间
+	 *
+	 * @return
+	 */
+	private long getAvailaleSize(String dir) {
+		StatFs stat = new StatFs(dir);
+		long blockSize = stat.getBlockSize();
+		long availableBlocks = stat.getAvailableBlocks();
+		return availableBlocks * blockSize; // 获取可用大小
+	}
+
+	public void close(){
+		if(randomAccessFile != null){
+			try {
+				randomAccessFile.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		if(outputStream != null){
+			try {
+				outputStream.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 }

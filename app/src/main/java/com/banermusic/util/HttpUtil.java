@@ -79,7 +79,7 @@ public class HttpUtil
 	/**
 	 * @param url
 	 *            发送请求的URL
-	 * @param params
+	 * @param rawParams
 	 *            请求参数
 	 * @return 服务器响应字符串
 	 * @throws Exception

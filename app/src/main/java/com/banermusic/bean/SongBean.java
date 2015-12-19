@@ -20,7 +20,7 @@ public class SongBean extends BaseBean {
     private long duration;// 歌曲时长
     private long size; // 歌曲大小
     private String path; // 歌曲本地路径
-    private long downSize;// 已经下载的进度
+    private int downloadProgress;// 已经下载的进度
     private int playProgress;// 播放的进度
     private int bufferProgress;// 缓存进度
 
@@ -120,12 +120,20 @@ public class SongBean extends BaseBean {
         this.path = path;
     }
 
-    public long getDownSize() {
-        return downSize;
+    public int getBufferProgress() {
+        return bufferProgress;
     }
 
-    public void setDownSize(long downSize) {
-        this.downSize = downSize;
+    public void setBufferProgress(int bufferProgress) {
+        this.bufferProgress = bufferProgress;
+    }
+
+    public int getDownloadProgress() {
+        return downloadProgress;
+    }
+
+    public void setDownloadProgress(int downloadProgress) {
+        this.downloadProgress = downloadProgress;
     }
 
     public int getPlayProgress() {
@@ -134,13 +142,5 @@ public class SongBean extends BaseBean {
 
     public void setPlayProgress(int playProgress) {
         this.playProgress = playProgress;
-    }
-
-    public int getBufferProgress() {
-        return bufferProgress;
-    }
-
-    public void setBufferProgress(int bufferProgress) {
-        this.bufferProgress = bufferProgress;
     }
 }

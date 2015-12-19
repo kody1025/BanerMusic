@@ -54,6 +54,7 @@ public class CommonPost extends BaseApi {
      *          专辑ID
      * @param listener
      */
+    @Deprecated
     public static void albumSong(final Context context, int albumId, RequestListener listener){
         Map<String,String> map = new HashMap<String, String>();
         map.put("album_id", String.valueOf(albumId));
@@ -94,5 +95,24 @@ public class CommonPost extends BaseApi {
         sendMapRequest(context, BaseConstants.LIST_BANNER, new HashMap<String, String>(), listener);
     }
 
-    
+    /**
+     * 今日推荐专辑列表
+     * @param context
+     * @param clientId
+     *          客户端标识
+     * @param pageNum
+     *          页码
+     * @param pageSize
+     *          每页数
+     * @param listener
+     */
+    public static void recommentAlbum(final Context context, String clientId, Integer pageNum, Integer pageSize, RequestListener listener){
+        Map<String,String> map = new HashMap<String, String>();
+        if(clientId != null){
+            map.put("client_id", clientId);
+        }
+        map.put("page_num", String.valueOf(pageNum));
+        map.put("page_size", String.valueOf(pageSize));
+        sendMapRequest(context, BaseConstants.RECOMMEND_ALBUM, map, listener);
+    }
 }

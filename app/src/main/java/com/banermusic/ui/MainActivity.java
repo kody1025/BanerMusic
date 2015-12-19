@@ -123,10 +123,10 @@ public class MainActivity extends FragmentActivity implements View.OnClickListen
         registerReceiver(volumnReceiver,filter);
 
         // 百度自动更新
-        /*dialog = new ProgressDialog(this);
+        dialog = new ProgressDialog(this);
         dialog.setIndeterminate(true);
         dialog.show();
-        BDAutoUpdateSDK.uiUpdateAction(this, new MyUICheckUpdateCallback());*/
+        BDAutoUpdateSDK.uiUpdateAction(this, new MyUICheckUpdateCallback());
     }
 
     private class VolumnReceiver extends BroadcastReceiver{
@@ -173,7 +173,8 @@ public class MainActivity extends FragmentActivity implements View.OnClickListen
     public void onEventMainThread(FragmentMessage fragmentMessage) {
         switch (fragmentMessage.getType()) {
             case FragmentMessage.SCENETOMUSICLIST:
-                switchFragment(SceneFragment.class, MusicListFragment.class);
+                //switchFragment(SceneFragment.class, MusicListFragment.class);
+                switchFragment(SceneFragment.class, AlbumMusicListFragment.class);
                 if (manager.executePendingTransactions() && fragmentMessage.getData() != null) {
                     fragmentMessage.setType(FragmentMessage.DATAMESSAGE);
                     EventBus.getDefault().post(fragmentMessage);

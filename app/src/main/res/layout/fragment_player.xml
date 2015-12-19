@@ -42,17 +42,20 @@
             android:layout_height="wrap_content"
             android:text="00:00"/>
 
-        <com.banermusic.widget.BaseSeekBar
+        <SeekBar
             android:id="@+id/seekBar"
             android:layout_width="fill_parent"
-            android:layout_height="20dp"
+            android:layout_height="wrap_content"
+            android:maxHeight="2dp"
+            android:minHeight="2dp"
             android:layout_centerVertical="true"
-            android:layout_marginLeft="10dp"
-            android:layout_marginRight="10dp"
             android:max="100"
             android:progress="0"
             android:layout_toRightOf="@+id/player_tvSongCurrentTime"
-            android:layout_toLeftOf="@+id/player_tvSongTotalTime"/>
+            android:layout_toLeftOf="@+id/player_tvSongTotalTime"
+            android:progressDrawable="@drawable/seekbar_process"
+            android:thumb="@drawable/seekbar_thumb"
+            android:thumbOffset="0dp" />
 
         <TextView
             android:id="@+id/player_tvSongTotalTime"

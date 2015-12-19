@@ -38,7 +38,7 @@ public class PlayerPopupWindow extends PopupWindow {
 
     private Context context;
 
-    private BaseSeekBar seekBar;
+    private SeekBar seekBar;
     private PlayButton playButton;
     private NextButton nextButton;
     private PrevButton prevButton;
@@ -105,7 +105,7 @@ public class PlayerPopupWindow extends PopupWindow {
             }
         });
 
-        seekBar = (BaseSeekBar) view.findViewById(R.id.seekBar);
+        seekBar = (SeekBar) view.findViewById(R.id.seekBar);
         seekBar.setEnabled(true);
         seekBar.setProgress(0);
 
@@ -268,7 +268,7 @@ public class PlayerPopupWindow extends PopupWindow {
 
     public void onEventMainThread(SongMessage songMessage){
         switch (songMessage.getType()){
-            case SongMessage.PLAY_UI_INIT:
+            case SongMessage.PLAY_UI:
                 seekBar.setMax((int) songMessage.getSongBean().getDuration());
                 seekBar.setProgress((int) songMessage.getSongBean().getPlayProgress());
                 tvSongTotalTime.setText(MediaUtils.formatTime((int) songMessage.getSongBean().getDuration()));
@@ -279,9 +279,12 @@ public class PlayerPopupWindow extends PopupWindow {
                 prevButton.setClickable(true);
                 nextButton.setClickable(true);
                 break;
+            case SongMessage.PAUSE_UI:
+                playButton.setIsChecked(false);
+                break;
             case SongMessage.BUFFER_UPDATE:
                 if(!isStartTrackingTouch){
-                    //seekBar.setSecondaryProgress((int) songMessage.getSongBean().getBufferProgress());
+                    seekBar.setSecondaryProgress(songMessage.getSongBean().getBufferProgress());
                 }
                 break;
             case SongMessage.INIT:
@@ -293,6 +296,7 @@ public class PlayerPopupWindow extends PopupWindow {
                 prevButton.setClickable(false);
                 nextButton.setClickable(false);
                 break;
+
         }
     }
 
